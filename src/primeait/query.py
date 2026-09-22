@@ -1,13 +1,22 @@
+import os
+
 from pathlib import Path
 from collections import deque
 from datetime import datetime
 from dotenv import load_dotenv
 import litellm
 
-from langchain_openai import OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 
 load_dotenv()
+
+PROVIDER_REGISTRY = {
+    "OpenAI": {"env_key": "OPENAI_API_KEY", "model": "openai/gpt-4o-mini"},
+    "DeepSeek": {"env_key": "DEEPSEEK_API_KEY", "model": "deepseek/deepseek-chat"},
+    "Anthropic": {"env_key": "ANTHROPIC_API_KEY", "model": "anthropic/claude-sonnet-4-5"},
+    "Gemini": {"env_key": "GEMINI_API_KEY", "model": "gemini/gemini-2.5-flash"},
+}
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 PERSIST_DIR = PROJECT_ROOT / "data" / "chroma_db"
@@ -103,8 +112,16 @@ class RagAgent:
         response = litellm.completion(model=self.model, messages=messages)
         return response.choices[0].message.content
 
+def available_providers() -> dict[str, str]:
+    """Return {name: model_string} for every provider with a key set."""
+    return {
+        name: cfg["model"]
+        for name, cfg in PROVIDER_REGISTRY.items()
+        if os.environ.get(cfg["env_key"])
+    }
+
 def build_agents():
-    embeddings = OpenAIEmbeddings()
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vectorstore = Chroma(persist_directory=PERSIST_DIR, embedding_function=embeddings)
     retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
 
@@ -129,10 +146,17 @@ def build_agents():
 
     transcript.on_evict(write_back)
 
+    providers = available_providers()
+
+    if len(providers) < 2:
+        raise RuntimeError(
+            f"Need at least 2 provider API keys to compete. Found {list(providers) or 'none'}"
+        )
+
 
     agents = {
-        "OpenAI": RagAgent("OpenAI", "openai/gpt-4o-mini", retriever, transcript),
-        "DeepSeek": RagAgent("DeepSeek", "deepseek/deepseek-chat", retriever, transcript)
+        name: RagAgent(name, model, retriever, transcript)
+        for name, model in providers.items()
     }
     return agents, transcript
         
