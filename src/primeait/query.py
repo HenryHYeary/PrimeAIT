@@ -98,7 +98,7 @@ class RagAgent:
         self._retriever = retriever
         self._transcript = transcript
 
-    def ask(self, question: str) -> str:
+    async def ask(self, question: str) -> str:
         docs = self._retriever.invoke(question)
         context = "\n\n".join(d.page_content for d in docs)
 
@@ -109,7 +109,7 @@ class RagAgent:
             "content": f"Context: {context}\n\nQuestion: {question}",
         })
 
-        response = litellm.completion(model=self.model, messages=messages)
+        response = await litellm.acompletion(model=self.model, messages=messages)
         return response.choices[0].message.content
 
 def available_providers() -> dict[str, str]:
@@ -159,9 +159,8 @@ def build_agents():
         for name, model in providers.items()
     }
     return agents, transcript
-        
 
-if __name__ == "__main__":
+def main():
     agents, transcript = build_agents()
     while True:
         question = input("\nAsk something (or 'quit'): ")
@@ -180,3 +179,7 @@ if __name__ == "__main__":
         feedback = input("Why? (optional, press Enter to skip): ").strip()
 
         transcript.add_round(question, answers, winner, feedback)
+    
+
+if __name__ == "__main__":
+    main()

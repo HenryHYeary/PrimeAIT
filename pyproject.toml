@@ -9,19 +9,25 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "chromadb>=1.5.9",
-    "community>=1.0.0b1",
-    "dotenv>=0.9.9",
+    "python-dotenv>=1.0.0",
+    "fastapi>=0.141.1",
     "langchain>=1.4.0",
     "langchain-chroma>=1.1.0",
-    "langchain-deepseek>=1.1.0",
     "langchain-huggingface>=1.2.2",
-    "langchain-openai>=1.6.2",
     "langchain-text-splitters>=1.1.2",
     "langchain-unstructured>=1.0.1",
     "litellm>=1.100.1",
+    "pydantic>=2.13.5",
     "requests>=2.34.2",
     "sentence-transformers>=6.1.0",
     "unstructured[md]>=0.27.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "httpx>=0.28.1",
 ]
 
 [project.scripts]
