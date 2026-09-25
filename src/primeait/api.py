@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import asyncio
 from primeait.query import build_agents
@@ -25,3 +26,10 @@ async def ask(req: AskRequest):
 async def vote(req: VoteRequest):
     transcript.add_round(req.question, req.answers, req.winner, req.feedback)
     return {"status": "ok"}
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
