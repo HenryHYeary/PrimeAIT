@@ -1,6 +1,8 @@
-import { useState, type ChangeEvent } from 'react'
-import { askQuestion, submitVote, type AnswerMap } from './api'
-import './App.css'
+import { useState, type ChangeEvent } from 'react';
+import { askQuestion, submitVote, type AnswerMap } from './api';
+import ReactMarkdown from "react-markdown";
+import remarkGfm from 'remark-gfm';
+import './App.css';
 
 function App() {
   const [question, setQuestion] = useState<string>("");
@@ -65,7 +67,7 @@ function App() {
                 }}
               >
                 <h3>{model}</h3>
-                <p>{text}</p>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
               </div>
             ))}
           </div>
