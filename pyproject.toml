@@ -21,6 +21,7 @@ dependencies = [
     "requests>=2.34.2",
     "sentence-transformers>=6.1.0",
     "unstructured[md]>=0.27.6",
+    "aiosqlite>=0.22.1",
 ]
 
 [project.optional-dependencies]

@@ -2,7 +2,6 @@ import os
 
 from pathlib import Path
 from collections import deque
-from datetime import datetime
 from dotenv import load_dotenv
 import litellm
 
@@ -72,25 +71,6 @@ class SharedTranscript:
                 })
         return messages
 
-
-class MarkdownLogger:
-    def __init__(self, path: Path):
-        self.path = path
-        if not self.path.exists():
-            self.path.write_text("# Conversation Log\n\n")
-
-    def log_round(self, round_data: dict):
-        lines = [f"## {datetime.now():%Y-%m-%d %H:%M:%S}", "", f"**Q:** {round_data['question']}", ""]
-        for model, answer in round_data["answers"].items():
-            tag = " 🏆" if model == round_data["winner"] else ""
-            lines.append(f"**{model}{tag}:** {answer}\n")
-        if round_data["feedback"]:
-            lines.append(f"**Feedback:** {round_data['feedback']}\n")
-        lines.append("---\n")
-
-        with self.path.open("a") as f:
-            f.write("\n".join(lines))
-
 class RagAgent:
     def __init__(self, name: str, model: str, retriever, transcript: SharedTranscript):
         self.name = name
@@ -120,15 +100,22 @@ def available_providers() -> dict[str, str]:
         if os.environ.get(cfg["env_key"])
     }
 
-def build_agents():
+def build_resources():
+    """Expensive, shared setup: embeddings, vectorstore, retriever, provider check.
+    Used by both the CLI (build_agents) and the API (ThreadManager)."""
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vectorstore = Chroma(persist_directory=PERSIST_DIR, embedding_function=embeddings)
     retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
 
-    transcript = SharedTranscript(max_rounds=8)
+    providers = available_providers()
+    if len(providers) < 2:
+        raise RuntimeError(f"Need at least 2 provider API keys to compete. Found {list(providers) or 'none'}")
 
-    logger = MarkdownLogger(PROJECT_ROOT / "data" / "conversation_log.md")
-    transcript.on_add(logger.log_round)
+    return retriever, vectorstore, providers
+
+def build_agents():
+    retriever, vectorstore, providers = build_resources()
+    transcript = SharedTranscript(max_rounds=8)
 
     def write_back(round_data: dict):
         doc_text = (
@@ -137,22 +124,13 @@ def build_agents():
             f"Chosen answer: {round_data['answers'][round_data['winner']]}"
         )
         if round_data["feedback"]:
-            doc_text += f"\nWhy it won: {round_data["feedback"]}"
-
+            doc_text += f"\nWhy it won: {round_data['feedback']}"
         vectorstore.add_texts(
             [doc_text],
-            metadatas=[{"winner": round_data["winner"], "type": "past_round", "has_feedback": bool(round_data["feedback"])}],
+            metadatas=[{"winner": round_data["winner"], "type": "past_round", "has_feedback": bool(round_data["feedback"])}]
         )
 
     transcript.on_evict(write_back)
-
-    providers = available_providers()
-
-    if len(providers) < 2:
-        raise RuntimeError(
-            f"Need at least 2 provider API keys to compete. Found {list(providers) or 'none'}"
-        )
-
 
     agents = {
         name: RagAgent(name, model, retriever, transcript)
