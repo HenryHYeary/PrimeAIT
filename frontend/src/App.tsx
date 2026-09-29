@@ -1,25 +1,55 @@
-import { useState, type ChangeEvent } from 'react';
-import { askQuestion, submitVote, type AnswerMap } from './api';
+import { useState, useEffect, type ChangeEvent } from 'react';
 import ReactMarkdown from "react-markdown";
 import remarkGfm from 'remark-gfm';
+import Sidebar from './Sidebar';
+import { type Thread, type Round, type AnswerMap, listThreads, createThread, getMessages, askQuestion, submitVote  } from './api';
 import './App.css';
 
 function App() {
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Round[]>([]);
+
   const [question, setQuestion] = useState<string>("");
   const [answers, setAnswers] = useState<AnswerMap | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [winner, setWinner] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string>("");
-  const [submitted, setSubmitted] = useState<boolean>(false);
+
+  useEffect(() => {
+    listThreads().then((t) => {
+      setThreads(t);
+      if (t.length > 0) setActiveThreadId(t[0].id);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!activeThreadId) return;
+    getMessages(activeThreadId).then(setMessages);
+    resetLiveRound();
+  }, [activeThreadId]);
+
+  function resetLiveRound(): void {
+    setQuestion("");
+    setAnswers(null);
+    setWinner(null);
+    setFeedback("");
+  }
+
+  async function handleNewThread(): Promise<void> {
+    const thread = await createThread();
+    setThreads((prev) => [thread, ...prev]);
+    setActiveThreadId(thread.id);
+  }
 
   async function handleAsk(e: ChangeEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
+    if (!activeThreadId) return;
     setLoading(true);
     setAnswers(null);
     setWinner(null);
-    setSubmitted(false);
     try {
-      const result = await askQuestion(question);
+      const result = await askQuestion(activeThreadId, question);
       setAnswers(result);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Unknown error");
@@ -29,66 +59,103 @@ function App() {
   }
 
   async function handleVote(): Promise<void> {
-    if (!winner || !answers) return;
-    await submitVote(question, answers, winner, feedback);
-    setSubmitted(true);
+    if (!activeThreadId || !winner || !answers) return;
+    await submitVote(question, answers, winner, activeThreadId, feedback);
+    const updated = await getMessages(activeThreadId);
+    setMessages(updated);
+    resetLiveRound();
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "2rem auto", fontFamily: "sans-serif" }}>
-      <h1>PrimeAIT</h1>
+    <div style={{ display: "flex" }}>
+      <Sidebar
+        threads={threads}
+        activeThreadId={activeThreadId}
+        onSelectThread={setActiveThreadId}
+        onNewThread={handleNewThread}
+      />
 
-      <form onSubmit={handleAsk}>
-        <input 
-          type="text"
-          value={question}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setQuestion(e.target.value)}
-          placeholder="Ask something..."
-          style={{ width: "70%", padding: "0.5rem", marginRight: "1rem" }} 
-        />
-        <button type="submit" disabled={loading || !question.trim()} style={{ height: 30, width: 50 }}>
-          {loading ? "Asking..." : "Ask"}
-        </button>
-      </form>
+      <div style={{ flex: 1, maxWidth: 900, margin: "2rem auto", fontFamily: "sans-serif" }}>
+        <h1>PrimeAIT</h1>
 
-      {answers && (
-         <>
-          <div style={{ display: "flex", gap: "1rem", marginTop: "1.5rem" }}>
-            {Object.entries(answers).map(([model, text]) => (
-              <div
-                key={model}
-                onClick={() => setWinner(model)}
-                style={{
-                  flex: 1,
-                  padding: "1rem",
-                  border: winner === model ? "2px solid #4caf50" : "1px solid #ccc",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                }}
-              >
-                <h3>{model}</h3>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+        {!activeThreadId ? (
+          <p>Start a new conversation to begin.</p>
+        ) : (
+          <>
+            {messages.map((r, i) => (
+              <div key={i} style={{ marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "1px solid #eee" }}>
+                <p style={{ fontWeight: 600 }}>{r.question}</p>
+                <div style={{ display: "flex", gap: "1rem" }}>
+                  {Object.entries(r.answers).map(([model, text]) => (
+                    <div
+                      key={model}
+                      style={{
+                        flex: 1,
+                        padding: "0.75rem",
+                        border: model === r.winner ? "2px solid #4caf50" : "1px solid #eee",
+                        borderRadius: 8,
+                      }}
+                    >
+                      <strong>{model}{model === r.winner ? " 🏆" : ""}</strong>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                    </div>
+                  ))}
+                </div>
+                {r.feedback && <p style={{ fontStyle: "italic", marginTop: "0.5rem" }}>Feedback: {r.feedback}</p>}
               </div>
             ))}
-          </div>
 
-          {winner && !submitted && (
-            <div style={{ marginTop: "1rem" }}>
-              <textarea
-                value={feedback}
-                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setFeedback(e.target.value)}
-                placeholder="Why? (optional)"
-                style={{ width: "100%", minHeight: 60 }}
+            <form onSubmit={handleAsk}>
+              <input
+                value={question}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setQuestion(e.target.value)}
+                placeholder="Ask something..."
+                style={{ width: "70%", padding: "0.5rem" }}
               />
-              <button onClick={handleVote}>Submit vote for {winner}</button>
-            </div>
-          )}
+              <button type="submit" disabled={loading || !question.trim()}>
+                {loading ? "Asking..." : "Ask"}
+              </button>
+            </form>
 
-          {submitted && <p>Vote recorded.</p>}
-        </>
-      )}
+            {answers && (
+              <>
+                <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
+                  {Object.entries(answers).map(([model, text]) => (
+                    <div
+                      key={model}
+                      onClick={() => setWinner(model)}
+                      style={{
+                        flex: 1,
+                        padding: "1rem",
+                        border: winner === model ? "2px solid #4caf50" : "1px solid #ccc",
+                        borderRadius: 8,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <h3>{model}</h3>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                    </div>
+                  ))}
+                </div>
+
+                {winner && (
+                  <div style={{ marginTop: "1rem" }}>
+                    <textarea
+                      value={feedback}
+                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setFeedback(e.target.value)}
+                      placeholder="Why? (optional)"
+                      style={{ width: "100%", minHeight: 60 }}
+                    />
+                    <button onClick={handleVote}>Submit vote for {winner}</button>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
     </div>
-  )
+  );
 }
 
 export default App
