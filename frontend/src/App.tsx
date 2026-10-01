@@ -23,17 +23,10 @@ function App() {
     });
   }, []);
 
-  useEffect(() => {
-    if (!activeThreadId) return;
-    getMessages(activeThreadId).then(setMessages);
-    resetLiveRound();
-  }, [activeThreadId]);
-
-  function resetLiveRound(): void {
-    setQuestion("");
-    setAnswers(null);
-    setWinner(null);
-    setFeedback("");
+  async function handleSelectThread(thread_id: string): Promise<void> {
+    setActiveThreadId(thread_id);
+    const messages = await getMessages(thread_id);
+    setMessages(messages);
   }
 
   async function handleNewThread(): Promise<void> {
@@ -55,6 +48,7 @@ function App() {
       alert(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
+      setQuestion("");
     }
   }
 
@@ -63,19 +57,23 @@ function App() {
     await submitVote(question, answers, winner, activeThreadId, feedback);
     const updated = await getMessages(activeThreadId);
     setMessages(updated);
-    resetLiveRound();
+    setWinner(null);
+    setAnswers(null);
+    setQuestion("");
+    setFeedback("");
   }
 
-  return (
+  return ( 
     <div style={{ display: "flex" }}>
       <Sidebar
         threads={threads}
+        numMessages={messages.length}
         activeThreadId={activeThreadId}
-        onSelectThread={setActiveThreadId}
+        onSelectThread={handleSelectThread}
         onNewThread={handleNewThread}
       />
 
-      <div style={{ flex: 1, maxWidth: 900, margin: "2rem auto", fontFamily: "sans-serif" }}>
+      <div style={{ display: "flex", maxWidth: 900, margin: "1rem", fontFamily: "sans-serif", justifyContent: "start", flexDirection: "column" }}>
         <h1>PrimeAIT</h1>
 
         {!activeThreadId ? (
@@ -104,18 +102,6 @@ function App() {
                 {r.feedback && <p style={{ fontStyle: "italic", marginTop: "0.5rem" }}>Feedback: {r.feedback}</p>}
               </div>
             ))}
-
-            <form onSubmit={handleAsk}>
-              <input
-                value={question}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setQuestion(e.target.value)}
-                placeholder="Ask something..."
-                style={{ width: "70%", padding: "0.5rem" }}
-              />
-              <button type="submit" disabled={loading || !question.trim()}>
-                {loading ? "Asking..." : "Ask"}
-              </button>
-            </form>
 
             {answers && (
               <>
@@ -150,9 +136,21 @@ function App() {
                   </div>
                 )}
               </>
-            )}
+            )
+            }
           </>
         )}
+        <form onSubmit={handleAsk}>
+          <input
+            value={question}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setQuestion(e.target.value)}
+            placeholder="Ask something..."
+            style={{ width: "500px", padding: "0.5rem" }}
+          />
+          <button type="submit" disabled={loading || !question.trim()}>
+            {loading ? "Asking..." : "Ask"}
+          </button>
+        </form>
       </div>
     </div>
   );

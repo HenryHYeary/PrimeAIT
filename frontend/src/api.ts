@@ -16,13 +16,6 @@ export interface Round {
   created_at: string;
 }
 
-// interface VoteRequest {
-//   question: string;
-//   answers: AnswerMap;
-//   winner: string;
-//   feedback: string;
-// }
-
 export async function listThreads(): Promise<Thread[]> {
   const res = await fetch(`${BASE_URL}/threads`);
   if (!res.ok) throw new Error(`listThreads failed: ${res.status}`);

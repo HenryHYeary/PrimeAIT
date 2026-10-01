@@ -79,4 +79,4 @@ async def insert_round(thread_id: str, question: str, answers: dict, winner: str
             "VALUES (?, ?, ?, ?, ?, ?)",
             (thread_id, question, json.dumps(answers), winner, feedback, created_at),
         )
-        db.commit()
+        await db.commit()

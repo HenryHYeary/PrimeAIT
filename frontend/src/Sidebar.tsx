@@ -3,14 +3,15 @@ import { type Thread } from "./api";
 interface SidebarProps {
   threads: Thread[],
   activeThreadId: string | null,
+  numMessages: number;
   onSelectThread: (id: string) => void;
   onNewThread: () => void;
 }
 
-export default function Sidebar({ threads, activeThreadId, onSelectThread, onNewThread }: SidebarProps) {
+export default function Sidebar({ threads, activeThreadId, numMessages, onSelectThread, onNewThread }: SidebarProps) {
   return (
     <div style={{ width: 240, borderRight: "1px solid #ddd", padding: "1rem", height: "100vh", boxSizing: "border-box"}}>
-      <button onClick={onNewThread} style={{ width: "100%", padding: "0.5rem", marginBottom: "1rem" }}>
+      <button disabled={numMessages === 0} onClick={onNewThread} style={{ width: "100%", padding: "0.5rem", marginBottom: "1rem" }}>
         + New Conversation
       </button>
       {threads.map((t) => (

@@ -53,6 +53,10 @@ async def create_thread(req: CreateThreadRequest):
 async def get_threads():
     return await db.list_threads()
 
+@app.get("/threads/{thread_id}/messages")
+async def get_messages(thread_id: str):
+    return await db.get_rounds(thread_id)
+
 
 @app.post("/threads/{thread_id}/ask")
 async def ask(thread_id: str, req: AskRequest):
